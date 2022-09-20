@@ -1,8 +1,9 @@
 package main
 
 import (
-	"io"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -23,7 +24,7 @@ func CORS(f func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWr
 			if i != nil {
 				http.Error(w, i.(error).Error(), http.StatusInternalServerError)
 			}
-			l.Debug("[%s]%s %s (elapsed %v ms)", r.RemoteAddr, r.Method, r.URL, time.Since(t).Milliseconds())
+			l.Print("[%s]%s %s (elapsed %v ms)", r.RemoteAddr, r.Method, r.URL, time.Since(t).Milliseconds())
 		})
 		w.Header().Add("Access-Control-Allow-Origin", "*")
 		w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
@@ -39,16 +40,11 @@ func CORS(f func(w http.ResponseWriter, r *http.Request)) func(w http.ResponseWr
 func NewHttpHandFunc(ri RedirectItem) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		host := strings.TrimSuffix(ri.Host, "/")
-		req, err := http.NewRequest(r.Method, host+r.URL.Path, r.Body)
+		u, err := url.Parse(host + r.URL.String())
 		assert(err)
-		req.Header = r.Header
-		cli := http.Client{Timeout: time.Minute}
-		res, err := cli.Do(req)
-		assert(err)
-		defer res.Body.Close()
-		_, err = io.Copy(w, res.Body)
-		if err != nil && err != io.EOF {
-			assert(err)
+		proxy := httputil.ReverseProxy{
+			Director: func(r *http.Request) { r.URL = u },
 		}
+		proxy.ServeHTTP(w, r)
 	}
 }
