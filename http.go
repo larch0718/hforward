@@ -47,6 +47,8 @@ func NewHttpHandFunc(ri RedirectItem) func(http.ResponseWriter, *http.Request) {
 		assert(err)
 		defer res.Body.Close()
 		_, err = io.Copy(w, res.Body)
-		assert(err)
+		if err != nil && err != io.EOF {
+			assert(err)
+		}
 	}
 }
